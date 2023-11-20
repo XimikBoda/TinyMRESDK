@@ -11,5 +11,7 @@ endif()
 
 project ("TinyMRESDK")
 
+include_directories("include")
+
 # Include sub-projects.
 add_subdirectory ("PackApp")
