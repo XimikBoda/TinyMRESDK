@@ -5,6 +5,8 @@
 #include <cmdparser.hpp>
 
 typedef unsigned char byte_t;
+using namespace std;
+using namespace ELFIO;
 
 byte_t all_ids[208] = {
 	0x88, 0x13, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x89, 0x13, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
@@ -22,8 +24,36 @@ byte_t all_ids[208] = {
 	0xA0, 0x13, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xA1, 0x13, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
 };
 
-using namespace std;
-using namespace ELFIO;
+
+string api_names[26] =
+{
+	"Audio",
+	"Call",
+	"Camera",
+	"File",
+	"HTTP",
+	"Record",
+	"Sensor",
+	"SIM card",
+	"SMS(person)",
+	"SMS(SP)",
+	"TCP",
+	"SysStorage",
+	"Sec",
+	"BitStream",
+	"Contact",
+	"LBS",
+	"MMS",
+	"ProMng",
+	"SMSMng",
+	"Video",
+	"XML",
+	"Payment",
+	"SysFile",
+	"BT",
+	"UDP",
+	"PUSH"
+};
 
 
 void fix_res_offsets(vector<byte_t>& buf, size_t res_offset, size_t res_size);
@@ -31,6 +61,7 @@ void add_tag(vector<byte_t>& buf, long id, const vector<byte_t>& data);
 vector<byte_t> string_to_vector(string name);
 vector<byte_t> mstring_to_vector(string name);
 vector<byte_t> int_to_vector(unsigned long num);
+vector<byte_t> api_names_to_vector(string apis);
 void add_end(vector<byte_t>& buf, long tags_pos);
 
 int main(int argc, char** argv)
@@ -42,13 +73,28 @@ int main(int argc, char** argv)
 		parser.set_required<std::string>("a", "axf", "Elf file from the compiler");
 		parser.set_required<std::string>("r", "res", "Resource File");
 		parser.set_required<std::string>("o", "out", "Out file");
+		parser.set_optional<std::string>("tdn", "tag-develop-name", "No name", "Name of developer for tags");
+		parser.set_optional<std::string>("tn", "tag-name", "No name", "Name of app for tags");
+		parser.set_optional<std::string>("ti", "tag-imsi", "", "Name of app for tags");
+		parser.set_optional<std::string>("tapi", "tag-api", "File SIM card ProMng", "List of required APIs (Audio Camera Call TCP File HTTP Sensor SIM card Record SMS(person) SMS(SP) BitStream Contact LBS MMS ProMng SMSMng Video XML Sec SysStorage Payment BT PUSH UDP SysFile)");
+		parser.set_optional<int>("tr", "tag-ram", 512, "Ram size application required (in KB) for tags");
+		parser.set_optional<int>("tb", "tag-background", 0, "App can work background? for tags");
 	}
 
 	parser.run_and_exit_if_error();
 
+	//Files patchs
 	string axf_path = parser.get<std::string>("a");
 	string res_path = parser.get<std::string>("r");
 	string out_path = parser.get<std::string>("o");
+
+	//Tags parametrs
+	string tag_develop_name = parser.get<std::string>("tdn");
+	string tag_name = parser.get<std::string>("tn");
+	string tag_imsi = parser.get<std::string>("ti");
+	string tag_api = parser.get<std::string>("tapi");
+	int tag_ram = parser.get<int>("tr");
+	int tag_background = parser.get<int>("tb");
 
 	//Open axf file
 	elfio reader;
@@ -96,26 +142,26 @@ int main(int argc, char** argv)
 	long tag_pos = full_file_buf.size();
 
 	//Add tags
-	add_tag(full_file_buf, 0x01, string_to_vector("Develop name"));
-	add_tag(full_file_buf, 0x02, int_to_vector(-1));
-	add_tag(full_file_buf, 0x03, int_to_vector(1));
-	add_tag(full_file_buf, 0x04, string_to_vector("App name"));
-	add_tag(full_file_buf, 0x05, int_to_vector(0x010000));
-	add_tag(full_file_buf, 0x0F, int_to_vector(512));
-	add_tag(full_file_buf, 0x10, int_to_vector(0));
-	add_tag(full_file_buf, 0x11, int_to_vector(0x9C400000));
-	add_tag(full_file_buf, 0x12, string_to_vector("1234567890"));
-	add_tag(full_file_buf, 0x13, vector<byte_t>(begin(all_ids), end(all_ids)));
-	add_tag(full_file_buf, 0x16, int_to_vector(1));
-	add_tag(full_file_buf, 0x18, int_to_vector(0));
-	add_tag(full_file_buf, 0x19, mstring_to_vector("App name"));
-	add_tag(full_file_buf, 0x1C, int_to_vector(0));
-	add_tag(full_file_buf, 0x21, int_to_vector(6));
-	add_tag(full_file_buf, 0x22, int_to_vector(0));
-	add_tag(full_file_buf, 0x23, int_to_vector(0));
-	add_tag(full_file_buf, 0x25, int_to_vector(0));
-	add_tag(full_file_buf, 0x29, int_to_vector(0));
-	add_tag(full_file_buf, 0x00, vector<byte_t>());
+	add_tag(full_file_buf, 0x01, string_to_vector(tag_develop_name));			//developer name
+	add_tag(full_file_buf, 0x02, int_to_vector(-1));							//app id
+	add_tag(full_file_buf, 0x03, int_to_vector(1));								//key id
+	add_tag(full_file_buf, 0x04, string_to_vector(tag_name));					//app name
+	add_tag(full_file_buf, 0x05, int_to_vector(0x010000));						//version
+	add_tag(full_file_buf, 0x0F, int_to_vector(tag_ram));						//ram required
+	add_tag(full_file_buf, 0x10, int_to_vector(0));								//screan resolution 0=any
+	add_tag(full_file_buf, 0x11, int_to_vector(0x9C400000));					//MRE engine version
+	add_tag(full_file_buf, 0x12, string_to_vector(tag_imsi));					//IMSI
+	add_tag(full_file_buf, 0x13, api_names_to_vector(tag_api));					//APIs 
+	add_tag(full_file_buf, 0x16, int_to_vector(1));								//Input mode?
+	add_tag(full_file_buf, 0x18, int_to_vector(tag_background));				//background run
+	add_tag(full_file_buf, 0x19, mstring_to_vector(tag_name));					//app name in 3 languages
+	add_tag(full_file_buf, 0x1C, int_to_vector(0));								//can rotate?
+	add_tag(full_file_buf, 0x21, int_to_vector(6));								//file type (6=vxp(GCC))
+	add_tag(full_file_buf, 0x22, int_to_vector(0));								//is zipped 
+	add_tag(full_file_buf, 0x23, int_to_vector(0));								//using UCS2 in tags
+	add_tag(full_file_buf, 0x25, int_to_vector(0));								//system file max size?
+	add_tag(full_file_buf, 0x29, int_to_vector(0));								//is not use screen
+	add_tag(full_file_buf, 0x00, vector<byte_t>());								//end of tags
 
 	//Add end
 	add_end(full_file_buf, tag_pos);
@@ -195,6 +241,17 @@ vector<byte_t> int_to_vector(unsigned long num)
 	vector<byte_t> n(4);
 	*(unsigned long*)(n.data()) = num;
 	return n;
+}
+
+vector<byte_t> api_names_to_vector(string apis)
+{
+	vector<byte_t> vec;
+	for (int i = 0; i < 26; ++i)
+		if (apis.find(api_names[i]) != string::npos) {
+			add_vector(vec, int_to_vector(5000 + i));
+			add_vector(vec, int_to_vector(1));
+		}
+	return vec;
 }
 
 vector<byte_t> mstring_to_vector(string name)
