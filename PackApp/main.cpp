@@ -55,10 +55,12 @@ string api_names[26] =
 	"PUSH"
 };
 
-
+bool load_file_to_vector(const std::string& path, vector<byte_t>& buf);
+void add_vector(vector<byte_t>& a, const vector<byte_t>& b);
 void fix_res_offsets(vector<byte_t>& buf, size_t res_offset, size_t res_size);
 void add_tag(vector<byte_t>& buf, long id, const vector<byte_t>& data);
-vector<byte_t> string_to_vector(string name);
+vector<byte_t> string_to_vector(string str);
+vector<byte_t> string_with_length_to_vector(string name); // length (4 bytes) + str
 vector<byte_t> mstring_to_vector(string name);
 vector<byte_t> int_to_vector(unsigned long num);
 vector<byte_t> api_names_to_vector(string apis);
@@ -70,11 +72,11 @@ int main(int argc, char** argv)
 	cli::Parser parser(argc, argv);
 
 	{
-		parser.set_required<std::string>("a", "axf", "Elf file from the compiler");
+		parser.set_required<std::string>("a", "axf", "Elf (or dll) file from the compiler");
 		parser.set_required<std::string>("r", "res", "Resource File");
 		parser.set_required<std::string>("o", "out", "Out file");
-		parser.set_optional<std::string>("tdn", "tag-develop-name", "No name", "Name of developer for tags");
-		parser.set_optional<std::string>("tn", "tag-name", "No name", "Name of app for tags");
+		parser.set_required<std::string>("tdn", "tag-develop-name" "Name of developer for tags");
+		parser.set_required<std::string>("tn", "tag-name", "Name of app for tags");
 		parser.set_optional<std::string>("ti", "tag-imsi", "", "Name of app for tags");
 		parser.set_optional<std::string>("tapi", "tag-api", "File SIM card ProMng", "List of required APIs (Audio Camera Call TCP File HTTP Sensor SIM card Record SMS(person) SMS(SP) BitStream Contact LBS MMS ProMng SMSMng Video XML Sec SysStorage Payment BT PUSH UDP SysFile)");
 		parser.set_optional<int>("tr", "tag-ram", 512, "Ram size application required (in KB) for tags");
@@ -96,48 +98,71 @@ int main(int argc, char** argv)
 	int tag_ram = parser.get<int>("tr");
 	int tag_background = parser.get<int>("tb");
 
-	//Open axf file
-	elfio reader;
+	cout << "Develop name: " << tag_develop_name << '\n';
+	cout << "App name: " << tag_name << '\n';
+	cout << "App apis: " << tag_api << '\n';
+	cout << "App ram size (in kb): " << tag_ram << '\n';
+	cout << "App background: " << (tag_background ? "true" : "false") << '\n';
 
-	if (!reader.load(axf_path)) {
-		std::cout << "Can't find or process axf file " << axf_path << std::endl;
-		return 1;
-	}
+	vector<byte_t> full_file_buf;
 
 	//Open res file
 	vector<byte_t> res_buf;
-	{
-		std::ifstream res_in(res_path, ios::in | ios::binary | ios::ate);
-		if (!res_in.is_open()) {
-			std::cout << "Can't find or open res file " << res_path << std::endl;
+	if (!load_file_to_vector(res_path, res_buf)) {
+		std::cout << "Can't find or open res file " << res_path << std::endl;
+		return 1;
+	}
+
+	if (axf_path.length() < 4) {
+		std::cout << "axf (or dll) file path to short " << axf_path << std::endl;
+		return 1;
+	}
+
+	string axf_extension = axf_path.substr(axf_path.length() - 4, 4);
+
+	if (axf_extension == ".axf"s) { //Open axf file
+		elfio reader;
+
+		if (!reader.load(axf_path)) {
+			std::cout << "Can't find or process axf file " << axf_path << std::endl;
 			return 1;
 		}
-		size_t size = (size_t)res_in.tellg();
-		res_in.seekg(0, ios::beg);
-		res_buf.resize(size);
-		res_in.read((char*)res_buf.data(), size);
-		res_in.close();
+
+		//Add res section
+		section* note_sec = reader.sections.add(".vm_res");
+		note_sec->set_type(SHT_PROGBITS);
+		note_sec->set_address(0);
+		note_sec->set_flags(SHF_ALLOC);
+		note_sec->append_data((char*)res_buf.data(), res_buf.size());
+
+		//Getting buffer
+		{
+			stringstream ss;
+			reader.save(ss);
+
+			full_file_buf.resize(ss.str().size());
+			memcpy(full_file_buf.data(), ss.str().c_str(), ss.str().size());
+		}
+
+		//Fix res offsets
+		fix_res_offsets(full_file_buf, note_sec->get_offset(), note_sec->get_size());
+	}
+	else if (axf_extension == ".dll"s) {// open dll
+		if (!load_file_to_vector(axf_path, full_file_buf)) {
+			std::cout << "Can't find or open dll file " << res_path << std::endl;
+			return 1;
+		}
+		size_t res_pos = full_file_buf.size();
+
+		add_vector(full_file_buf, string_to_vector(".vm_res"));
+		add_vector(full_file_buf, res_buf);
+		add_vector(full_file_buf, int_to_vector(res_pos)); // ".vm_res" offset
+
+		fix_res_offsets(full_file_buf, res_pos + 8, res_buf.size()); // 8 is ".vm_res\0"
 	}
 
-	//Add res section
-	section* note_sec = reader.sections.add(".vm_res");
-	note_sec->set_type(SHT_PROGBITS);
-	note_sec->set_address(0);
-	note_sec->set_flags(SHF_ALLOC);
-	note_sec->append_data((char*)res_buf.data(), res_buf.size());
 
-	//Getting buffer
-	vector<byte_t> full_file_buf;
-	{
-		stringstream ss;
-		reader.save(ss);
 
-		full_file_buf.resize(ss.str().size());
-		memcpy(full_file_buf.data(), ss.str().c_str(), ss.str().size());
-	}
-
-	//Fix res offsets
-	fix_res_offsets(full_file_buf, note_sec->get_offset(), note_sec->get_size());
 
 	long tag_pos = full_file_buf.size();
 
@@ -171,6 +196,18 @@ int main(int argc, char** argv)
 		return 0;
 	out.write((char*)full_file_buf.data(), full_file_buf.size());
 	out.close();
+}
+
+bool load_file_to_vector(const std::string& path, vector<byte_t>& buf) {
+	std::ifstream file(path, ios::in | ios::binary | ios::ate);
+	if (!file.is_open()) {
+		return 0;
+	}
+	size_t size = (size_t)file.tellg();
+	file.seekg(0, ios::beg);
+	buf.resize(size);
+	file.read((char*)buf.data(), size);
+	file.close();
 }
 
 void fix_res_offsets(vector<byte_t>& buf, size_t res_offset, size_t res_size)
@@ -228,7 +265,14 @@ void add_tag(vector<byte_t>& buf, long id, const vector<byte_t>& data)
 	add_vector(buf, data);
 }
 
-vector<byte_t> string_to_vector(string name)
+vector<byte_t> string_to_vector(string str)
+{
+	vector<byte_t> vstr(str.size() + 1);
+	memcpy(vstr.data(), str.c_str(), str.size() + 1);
+	return vstr;
+}
+
+vector<byte_t> string_with_length_to_vector(string name)
 {
 	vector<byte_t> str(4 + name.size() + 1);
 	memcpy(str.data() + 4, name.c_str(), name.size() + 1);
@@ -258,17 +302,19 @@ vector<byte_t> mstring_to_vector(string name)
 {
 	vector<byte_t> str;
 	for (int i = 0; i < 3; ++i) {
-		add_vector(str, int_to_vector(i+1));
-		add_vector(str, string_to_vector(name));
+		add_vector(str, int_to_vector(i + 1));
+		add_vector(str, string_with_length_to_vector(name));
 	}
-		
+
 	return str;
 }
 
 void add_end(vector<byte_t>& buf, long tags_pos)
 {
-	vector<byte_t> end= { 0xB4, 0x56, 0x44, 0x45, 0x31, 0x30, 0x1 };
+	vector<byte_t> end = { 0xB4, 0x56, 0x44, 0x45, 0x31, 0x30, 0x1 };
 	end.resize(0x56);
+	for (int i = 0; i < 64; ++i)
+		end[i + 10] = 0xFF;
 	*(long*)(end.data() + 0x56 - 12) = tags_pos;
 	add_vector(buf, end);
 }
