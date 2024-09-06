@@ -55,7 +55,7 @@ string api_names[26] =
 	"PUSH"
 };
 
-bool load_file_to_vector(const std::string& path, vector<byte_t>& buf);
+bool load_file_to_vector(const string& path, vector<byte_t>& buf);
 void add_vector(vector<byte_t>& a, const vector<byte_t>& b);
 void fix_res_offsets(vector<byte_t>& buf, size_t res_offset, size_t res_size);
 void add_tag(vector<byte_t>& buf, long id, const vector<byte_t>& data);
@@ -72,13 +72,13 @@ int main(int argc, char** argv)
 	cli::Parser parser(argc, argv);
 
 	{
-		parser.set_required<std::string>("a", "axf", "Elf (or dll) file from the compiler");
-		parser.set_required<std::string>("r", "res", "Resource File");
-		parser.set_required<std::string>("o", "out", "Out file");
-		parser.set_required<std::string>("tdn", "tag-develop-name" "Name of developer for tags");
-		parser.set_required<std::string>("tn", "tag-name", "Name of app for tags");
-		parser.set_optional<std::string>("ti", "tag-imsi", "", "Name of app for tags");
-		parser.set_optional<std::string>("tapi", "tag-api", "File SIM card ProMng", "List of required APIs (Audio Camera Call TCP File HTTP Sensor SIM card Record SMS(person) SMS(SP) BitStream Contact LBS MMS ProMng SMSMng Video XML Sec SysStorage Payment BT PUSH UDP SysFile)");
+		parser.set_required<string>("a", "axf", "Elf (or dll) file from the compiler");
+		parser.set_required<string>("r", "res", "Resource File");
+		parser.set_required<string>("o", "out", "Out file");
+		parser.set_required<string>("tdn", "tag-develop-name" "Name of developer for tags");
+		parser.set_required<string>("tn", "tag-name", "Name of app for tags");
+		parser.set_optional<string>("ti", "tag-imsi", "", "Name of app for tags");
+		parser.set_optional<string>("tapi", "tag-api", "File SIM card ProMng", "List of required APIs (Audio Camera Call TCP File HTTP Sensor SIM card Record SMS(person) SMS(SP) BitStream Contact LBS MMS ProMng SMSMng Video XML Sec SysStorage Payment BT PUSH UDP SysFile)");
 		parser.set_optional<int>("tr", "tag-ram", 512, "Ram size application required (in KB) for tags");
 		parser.set_optional<int>("tb", "tag-background", 0, "App can work background? for tags");
 	}
@@ -86,15 +86,15 @@ int main(int argc, char** argv)
 	parser.run_and_exit_if_error();
 
 	//Files patchs
-	string axf_path = parser.get<std::string>("a");
-	string res_path = parser.get<std::string>("r");
-	string out_path = parser.get<std::string>("o");
+	string axf_path = parser.get<string>("a");
+	string res_path = parser.get<string>("r");
+	string out_path = parser.get<string>("o");
 
 	//Tags parametrs
-	string tag_develop_name = parser.get<std::string>("tdn");
-	string tag_name = parser.get<std::string>("tn");
-	string tag_imsi = parser.get<std::string>("ti");
-	string tag_api = parser.get<std::string>("tapi");
+	string tag_develop_name = parser.get<string>("tdn");
+	string tag_name = parser.get<string>("tn");
+	string tag_imsi = parser.get<string>("ti");
+	string tag_api = parser.get<string>("tapi");
 	int tag_ram = parser.get<int>("tr");
 	int tag_background = parser.get<int>("tb");
 
@@ -109,12 +109,12 @@ int main(int argc, char** argv)
 	//Open res file
 	vector<byte_t> res_buf;
 	if (!load_file_to_vector(res_path, res_buf)) {
-		std::cout << "Can't find or open res file " << res_path << std::endl;
+		cout << "Can't find or open res file " << res_path << endl;
 		return 1;
 	}
 
 	if (axf_path.length() < 4) {
-		std::cout << "axf (or dll) file path to short " << axf_path << std::endl;
+		cout << "axf (or dll) file path to short " << axf_path << endl;
 		return 1;
 	}
 
@@ -124,7 +124,7 @@ int main(int argc, char** argv)
 		elfio reader;
 
 		if (!reader.load(axf_path)) {
-			std::cout << "Can't find or process axf file " << axf_path << std::endl;
+			cout << "Can't find or process axf file " << axf_path << endl;
 			return 1;
 		}
 
@@ -149,7 +149,7 @@ int main(int argc, char** argv)
 	}
 	else if (axf_extension == ".dll"s) {// open dll
 		if (!load_file_to_vector(axf_path, full_file_buf)) {
-			std::cout << "Can't find or open dll file " << res_path << std::endl;
+			cout << "Can't find or open dll file " << res_path << endl;
 			return 1;
 		}
 		size_t res_pos = full_file_buf.size();
@@ -198,8 +198,8 @@ int main(int argc, char** argv)
 	out.close();
 }
 
-bool load_file_to_vector(const std::string& path, vector<byte_t>& buf) {
-	std::ifstream file(path, ios::in | ios::binary | ios::ate);
+bool load_file_to_vector(const string& path, vector<byte_t>& buf) {
+	ifstream file(path, ios::in | ios::binary | ios::ate);
 	if (!file.is_open()) {
 		return 0;
 	}
