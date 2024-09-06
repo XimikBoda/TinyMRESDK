@@ -37,3 +37,6 @@ CMakeSettings.json
 
 # Out folder
 out/*
+
+# Bin folder
+bin/*

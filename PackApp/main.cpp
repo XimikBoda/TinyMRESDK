@@ -149,7 +149,7 @@ int main(int argc, char** argv)
 	}
 	else if (axf_extension == ".dll"s) {// open dll
 		if (!load_file_to_vector(axf_path, full_file_buf)) {
-			cout << "Can't find or open dll file " << res_path << endl;
+			cout << "Can't find or open dll file " << axf_path << endl;
 			return 1;
 		}
 		size_t res_pos = full_file_buf.size();
@@ -193,7 +193,7 @@ int main(int argc, char** argv)
 
 	ofstream out(out_path, ios_base::binary);
 	if (!out.good())
-		return 0;
+		return 1;
 	out.write((char*)full_file_buf.data(), full_file_buf.size());
 	out.close();
 }
@@ -208,6 +208,7 @@ bool load_file_to_vector(const string& path, vector<byte_t>& buf) {
 	buf.resize(size);
 	file.read((char*)buf.data(), size);
 	file.close();
+	return 1;
 }
 
 void fix_res_offsets(vector<byte_t>& buf, size_t res_offset, size_t res_size)
