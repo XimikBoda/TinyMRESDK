@@ -14,3 +14,4 @@ include_directories("include")
 
 # Include sub-projects.
 add_subdirectory ("PackApp")
+add_subdirectory ("PackRes")
