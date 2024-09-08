@@ -36,6 +36,11 @@ resourse::resourse(const string& path) {
 resourse AppLogo_gen() { // TODO
 	resourse res;
 	res.name = "Applogo.img";
+	res.buf = vector<byte_t>({
+		0x56, 0x52, 0x45, 0x41, 0x50, 0x50, 0x4C, 0x4F, 0x47, 0x4F, 0x30, 0x39, 0x42, 0x56, 0x52, 0x45, // temp
+		0x50, 0x4E, 0x47, 0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+	}); // Empty
+
 	return res;
 }
 
@@ -78,10 +83,12 @@ int main(int argc, char** argv)
 	vector<resourse> resourses;
 	resourses.reserve(files.size() + 2);
 
+	if (elogo)
+		resourses.push_back(AppLogo_gen());
+
 	for (auto& el : files)
 		resourses.push_back(resourse(el));
 
-	resourses.push_back(AppLogo_gen());
 	resourses.push_back(mre2_gen());
 
 	vector<byte_t> out_file;
@@ -108,6 +115,8 @@ int main(int argc, char** argv)
 
 	{ // temp add additional offset point
 		memcpy(out_file.data() + mre2_res_offset_offset, &resourses[resourses.size() - 1].offset, 4);
+		uint32_t size = resourses.size();
+		memcpy(out_file.data() + out_file.size() - 4, &size, 4);
 	}
 
 	ofstream out(out_path, ios_base::binary);
@@ -128,46 +137,6 @@ bool load_file_to_vector(const string& path, vector<byte_t>& buf) {
 	file.read((char*)buf.data(), size);
 	file.close();
 	return 1;
-}
-
-void fix_res_offsets(vector<byte_t>& buf, size_t res_offset, size_t res_size)
-{
-	size_t pos = res_offset;
-
-	while (true) {
-		string name((char*)buf.data() + pos);
-		pos += name.size() + 1;
-
-		if (name.size() == 0)
-			break;
-
-
-		long& offset = *(long*)(buf.data() + pos);
-		pos += 4;
-
-		long size = *(long*)(buf.data() + pos);
-		pos += 4;
-
-		offset += res_offset;
-	}
-
-	long& res2_offset = *(long*)(buf.data() + pos);
-	res2_offset += res_offset;
-
-	pos = res2_offset;
-
-	while (true) {
-		long id = *(long*)(buf.data() + pos);
-		pos += 4;
-
-		long& offset = *(long*)(buf.data() + pos);
-		pos += 4;
-
-		offset += res_offset;
-
-		if (id == 0xFFFFFFFF)
-			break;
-	}
 }
 
 void add_vector(vector<byte_t>& a, const vector<byte_t>& b)
