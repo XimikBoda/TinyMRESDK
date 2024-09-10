@@ -1,6 +1,6 @@
 # Tiny alternative for MRE SDK  
 
-
+For now only packing tools
 
 ## What are the CMake projects in this repo about?
 
