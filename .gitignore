@@ -40,3 +40,5 @@ out/*
 
 # Bin folder
 bin/*
+
+build

@@ -2,6 +2,7 @@
 #include <fstream>
 #include <filesystem>
 #include <cmdparser.hpp>
+#include <cstring>
 
 typedef unsigned char byte_t;
 
