@@ -58,13 +58,13 @@ string api_names[26] =
 bool load_file_to_vector(const string& path, vector<byte_t>& buf);
 void add_vector(vector<byte_t>& a, const vector<byte_t>& b);
 void fix_res_offsets(vector<byte_t>& buf, size_t res_offset, size_t res_size);
-void add_tag(vector<byte_t>& buf, long id, const vector<byte_t>& data);
+void add_tag(vector<byte_t>& buf, int32_t id, const vector<byte_t>& data);
 vector<byte_t> string_to_vector(string str);
 vector<byte_t> string_with_length_to_vector(string name); // length (4 bytes) + str
 vector<byte_t> mstring_to_vector(string name);
-vector<byte_t> int_to_vector(unsigned long num);
+vector<byte_t> int_to_vector(uint32_t num);
 vector<byte_t> api_names_to_vector(string apis);
-void add_end(vector<byte_t>& buf, long tags_pos);
+void add_end(vector<byte_t>& buf, int32_t tags_pos);
 
 int main(int argc, char** argv)
 {
@@ -164,7 +164,7 @@ int main(int argc, char** argv)
 
 
 
-	long tag_pos = full_file_buf.size();
+	int32_t tag_pos = full_file_buf.size();
 
 	//Add tags
 	add_tag(full_file_buf, 0x01, string_to_vector(tag_develop_name));			//developer name
@@ -223,25 +223,25 @@ void fix_res_offsets(vector<byte_t>& buf, size_t res_offset, size_t res_size)
 			break;
 
 
-		long& offset = *(long*)(buf.data() + pos);
+		int32_t& offset = *(int32_t*)(buf.data() + pos);
 		pos += 4;
 
-		long size = *(long*)(buf.data() + pos);
+		int32_t size = *(int32_t*)(buf.data() + pos);
 		pos += 4;
 
 		offset += res_offset;
 	}
 
-	long& res2_offset = *(long*)(buf.data() + pos);
+	int32_t& res2_offset = *(int32_t*)(buf.data() + pos);
 	res2_offset += res_offset;
 
 	pos = res2_offset;
 
 	while (true) {
-		long id = *(long*)(buf.data() + pos);
+		int32_t id = *(int32_t*)(buf.data() + pos);
 		pos += 4;
 
-		long& offset = *(long*)(buf.data() + pos);
+		int32_t& offset = *(int32_t*)(buf.data() + pos);
 		pos += 4;
 
 		offset += res_offset;
@@ -256,12 +256,12 @@ void add_vector(vector<byte_t>& a, const vector<byte_t>& b)
 	a.insert(a.end(), b.begin(), b.end());
 }
 
-void add_tag(vector<byte_t>& buf, long id, const vector<byte_t>& data)
+void add_tag(vector<byte_t>& buf, int32_t id, const vector<byte_t>& data)
 {
 	vector<byte_t> tag(8);
 	tag.resize(8);
-	*(long*)(tag.data()) = id;
-	*(long*)(tag.data() + 4) = data.size();
+	*(int32_t*)(tag.data()) = id;
+	*(int32_t*)(tag.data() + 4) = data.size();
 	add_vector(buf, tag);
 	add_vector(buf, data);
 }
@@ -277,14 +277,14 @@ vector<byte_t> string_with_length_to_vector(string name)
 {
 	vector<byte_t> str(4 + name.size() + 1);
 	memcpy(str.data() + 4, name.c_str(), name.size() + 1);
-	*(long*)(str.data()) = name.size() + 1;
+	*(int32_t*)(str.data()) = name.size() + 1;
 	return str;
 }
 
-vector<byte_t> int_to_vector(unsigned long num)
+vector<byte_t> int_to_vector(uint32_t num)
 {
 	vector<byte_t> n(4);
-	*(unsigned long*)(n.data()) = num;
+	*(uint32_t*)(n.data()) = num;
 	return n;
 }
 
@@ -310,12 +310,12 @@ vector<byte_t> mstring_to_vector(string name)
 	return str;
 }
 
-void add_end(vector<byte_t>& buf, long tags_pos)
+void add_end(vector<byte_t>& buf, int32_t tags_pos)
 {
 	vector<byte_t> end = { 0xB4, 0x56, 0x44, 0x45, 0x31, 0x30, 0x1 };
 	end.resize(0x56);
 	for (int i = 0; i < 64; ++i)
 		end[i + 10] = 0xFF;
-	*(long*)(end.data() + 0x56 - 12) = tags_pos;
+	*(int32_t*)(end.data() + 0x56 - 12) = tags_pos;
 	add_vector(buf, end);
 }

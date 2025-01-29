@@ -12,7 +12,7 @@ bool load_file_to_vector(const string& path, vector<byte_t>& buf);
 void add_vector(vector<byte_t>& a, const vector<byte_t>& b);
 vector<byte_t> string_to_vector(string str);
 vector<byte_t> string_with_length_to_vector(string name); // length (4 bytes) + str
-vector<byte_t> int_to_vector(unsigned long num);
+vector<byte_t> int_to_vector(uint32_t num);
 
 struct resourse {
 	resourse() = default;
@@ -155,14 +155,14 @@ vector<byte_t> string_with_length_to_vector(string name)
 {
 	vector<byte_t> str(4 + name.size() + 1);
 	memcpy(str.data() + 4, name.c_str(), name.size() + 1);
-	*(long*)(str.data()) = name.size() + 1;
+	*(int32_t*)(str.data()) = name.size() + 1;
 	return str;
 }
 
-vector<byte_t> int_to_vector(unsigned long num)
+vector<byte_t> int_to_vector(uint32_t num)
 {
 	vector<byte_t> n(4);
-	*(unsigned long*)(n.data()) = num;
+	*(uint32_t*)(n.data()) = num;
 	return n;
 }
 
