@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <map>
 #include <elfio/elfio.hpp>
 #include <cmdparser.hpp>
 
@@ -55,6 +56,18 @@ string api_names[26] =
 	"PUSH"
 };
 
+map<string, int> filetypes = {
+	{"vxp (ADS)"s, 0},
+	{"vsm (ADS)"s, 1},
+	{"svxp (ADS)"s, 5},
+	{"vxp (RVCT)"s, 2},
+	{"vsm (RVCT)"s, 3},
+	{"vso (RVCT)"s, 4},
+	{"vxp (GCC)"s, 6},
+	{"vso (GCC)"s, 7},
+	{"vsm (GCC)"s, 8}
+};
+
 bool load_file_to_vector(const string& path, vector<byte_t>& buf);
 void add_vector(vector<byte_t>& a, const vector<byte_t>& b);
 void fix_res_offsets(vector<byte_t>& buf, size_t res_offset, size_t res_size);
@@ -79,6 +92,8 @@ int main(int argc, char** argv)
 		parser.set_required<string>("tn", "tag-name", "Name of app for tags");
 		parser.set_optional<string>("ti", "tag-imsi", "", "Name of app for tags");
 		parser.set_optional<string>("tapi", "tag-api", "File SIM card ProMng", "List of required APIs (Audio Camera Call TCP File HTTP Sensor SIM card Record SMS(person) SMS(SP) BitStream Contact LBS MMS ProMng SMSMng Video XML Sec SysStorage Payment BT PUSH UDP SysFile)");
+		parser.set_optional<string>("ty", "tag-type", "vxp", "Type of file (vxp, vso, vsm, svxp)");
+		parser.set_optional<string>("tc", "tag-compiler", "GCC", "Type of used compiler (GCC, RVCT, ADS)");
 		parser.set_optional<int>("tr", "tag-ram", 512, "Ram size application required (in KB) for tags");
 		parser.set_optional<int>("tb", "tag-background", 0, "App can work background? for tags");
 	}
@@ -95,14 +110,27 @@ int main(int argc, char** argv)
 	string tag_name = parser.get<string>("tn");
 	string tag_imsi = parser.get<string>("ti");
 	string tag_api = parser.get<string>("tapi");
+	string tag_type = parser.get<string>("ty");
+	string tag_compiler = parser.get<string>("tc");
 	int tag_ram = parser.get<int>("tr");
 	int tag_background = parser.get<int>("tb");
+	int tag_filetype = 6;
+
+	{
+		auto filetype = filetypes.find(tag_type + " (" + tag_compiler + ")");
+		if (filetype == filetypes.end()) {
+			cout << "Wrong tag type or tag compiler" << endl;
+			return 1;
+		}
+		tag_filetype = filetype->second;
+	}
 
 	cout << "Develop name: " << tag_develop_name << '\n';
 	cout << "App name: " << tag_name << '\n';
 	cout << "App apis: " << tag_api << '\n';
 	cout << "App ram size (in kb): " << tag_ram << '\n';
 	cout << "App background: " << (tag_background ? "true" : "false") << '\n';
+	cout << "App type: " << tag_type << " (" << tag_filetype << ")" << '\n';
 
 	vector<byte_t> full_file_buf;
 
@@ -159,10 +187,10 @@ int main(int argc, char** argv)
 		add_vector(full_file_buf, int_to_vector(res_pos)); // ".vm_res" offset
 
 		fix_res_offsets(full_file_buf, res_pos + 8, res_buf.size()); // 8 is ".vm_res\0"
+
+		if (tag_type == "vsm")
+			tag_filetype = 5; // IDK why
 	}
-
-
-
 
 	int32_t tag_pos = full_file_buf.size();
 
@@ -181,7 +209,7 @@ int main(int argc, char** argv)
 	add_tag(full_file_buf, 0x18, int_to_vector(tag_background));				//background run
 	add_tag(full_file_buf, 0x19, mstring_to_vector(tag_name));					//app name in 3 languages
 	add_tag(full_file_buf, 0x1C, int_to_vector(0));								//can rotate?
-	add_tag(full_file_buf, 0x21, int_to_vector(6));								//file type (6=vxp(GCC))
+	add_tag(full_file_buf, 0x21, int_to_vector(tag_filetype));					//file type
 	add_tag(full_file_buf, 0x22, int_to_vector(0));								//is zipped 
 	add_tag(full_file_buf, 0x23, int_to_vector(0));								//using UCS2 in tags
 	add_tag(full_file_buf, 0x25, int_to_vector(0));								//system file max size?
