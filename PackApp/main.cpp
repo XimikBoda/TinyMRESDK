@@ -229,7 +229,7 @@ int main(int argc, char** argv)
 	vector<byte_t> signature(64);
 
 	if (tag_appid != -1 && tag_certid != 1) {
-		cout << "Signature imposition\n";
+		cout << "Creating signature\n";
 
 		byte_t double_hash[32], hash_of_double_hash[16];
 
@@ -251,7 +251,7 @@ int main(int argc, char** argv)
 			return 1;
 		}
 
-		if (RSA_private_encrypt(16, hash_of_double_hash, signature.data(), rsa, RSA_PKCS1_PADDING) != 0) {
+		if (RSA_private_encrypt(16, hash_of_double_hash, signature.data(), rsa, RSA_PKCS1_PADDING) < 0) {
 			cout << "Can't encrypt" << endl;
 			return 1;
 		}
