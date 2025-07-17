@@ -4,6 +4,10 @@
 #include <map>
 #include <elfio/elfio.hpp>
 #include <cmdparser.hpp>
+#include <openssl/md5.h>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
 
 typedef unsigned char byte_t;
 using namespace std;
@@ -77,7 +81,7 @@ vector<byte_t> string_with_length_to_vector(string name); // length (4 bytes) + 
 vector<byte_t> mstring_to_vector(string name);
 vector<byte_t> int_to_vector(uint32_t num);
 vector<byte_t> api_names_to_vector(string apis);
-void add_end(vector<byte_t>& buf, int32_t tags_pos);
+void add_end(vector<byte_t>& buf, int32_t tags_pos, vector<byte_t> signature);
 
 int main(int argc, char** argv)
 {
@@ -90,12 +94,15 @@ int main(int argc, char** argv)
 		parser.set_required<string>("o", "out", "Out file");
 		parser.set_required<string>("tdn", "tag-develop-name" "Name of developer for tags");
 		parser.set_required<string>("tn", "tag-name", "Name of app for tags");
+		parser.set_optional<string>("crt", "cert", "", "Cert file (must be setup correct certid and non-negative appid)");
 		parser.set_optional<string>("ti", "tag-imsi", "", "Name of app for tags");
 		parser.set_optional<string>("tapi", "tag-api", "File SIM card ProMng", "List of required APIs (Audio Camera Call TCP File HTTP Sensor SIM card Record SMS(person) SMS(SP) BitStream Contact LBS MMS ProMng SMSMng Video XML Sec SysStorage Payment BT PUSH UDP SysFile)");
 		parser.set_optional<string>("ty", "tag-type", "vxp", "Type of file (vxp, vso, vsm, svxp)");
 		parser.set_optional<string>("tc", "tag-compiler", "GCC", "Type of used compiler (GCC, RVCT, ADS)");
 		parser.set_optional<int>("tr", "tag-ram", 512, "Ram size application required (in KB) for tags");
 		parser.set_optional<int>("tb", "tag-background", 0, "App can work background? for tags");
+		parser.set_optional<int>("tai", "tag-appid", -1, "App id, special values: -1 is personal (imsi), 0 is in developing");
+		parser.set_optional<int>("tci", "tag-certid", 1, "Cert id use from you cert, 1 is personal (imsi)");
 	}
 
 	parser.run_and_exit_if_error();
@@ -104,6 +111,7 @@ int main(int argc, char** argv)
 	string axf_path = parser.get<string>("a");
 	string res_path = parser.get<string>("r");
 	string out_path = parser.get<string>("o");
+	string cert_path = parser.get<string>("crt");
 
 	//Tags parametrs
 	string tag_develop_name = parser.get<string>("tdn");
@@ -114,6 +122,8 @@ int main(int argc, char** argv)
 	string tag_compiler = parser.get<string>("tc");
 	int tag_ram = parser.get<int>("tr");
 	int tag_background = parser.get<int>("tb");
+	int tag_appid = parser.get<int>("tai");
+	int tag_certid = parser.get<int>("tci");
 	int tag_filetype = 6;
 
 	{
@@ -196,8 +206,8 @@ int main(int argc, char** argv)
 
 	//Add tags
 	add_tag(full_file_buf, 0x01, string_to_vector(tag_develop_name));			//developer name
-	add_tag(full_file_buf, 0x02, int_to_vector(-1));							//app id
-	add_tag(full_file_buf, 0x03, int_to_vector(1));								//key id
+	add_tag(full_file_buf, 0x02, int_to_vector(tag_appid));						//app id
+	add_tag(full_file_buf, 0x03, int_to_vector(tag_certid));					//key id
 	add_tag(full_file_buf, 0x04, string_to_vector(tag_name));					//app name
 	add_tag(full_file_buf, 0x05, int_to_vector(0x010000));						//version
 	add_tag(full_file_buf, 0x0F, int_to_vector(tag_ram));						//ram required
@@ -216,8 +226,40 @@ int main(int argc, char** argv)
 	add_tag(full_file_buf, 0x29, int_to_vector(0));								//is not use screen
 	add_tag(full_file_buf, 0x00, vector<byte_t>());								//end of tags
 
+	vector<byte_t> signature(64);
+
+	if (tag_appid != -1 && tag_certid != 1) {
+		cout << "Creating signature\n";
+
+		byte_t double_hash[32], hash_of_double_hash[16];
+
+		MD5(full_file_buf.data(), tag_pos, double_hash);
+		MD5(full_file_buf.data() + tag_pos, full_file_buf.size() - tag_pos, double_hash + 16);
+		MD5(double_hash, 32, hash_of_double_hash);
+
+		FILE* fp = fopen(cert_path.c_str(), "rb");
+		if (!fp) {
+			cout << "Can't open cert file " << res_path << endl;
+			return 1;
+		}
+		RSA* rsa = PEM_read_RSAPrivateKey(fp, NULL, NULL, NULL);
+		ERR_print_errors_fp(stderr);
+		fclose(fp);
+
+		if (!rsa) {
+			cout << "Can't init RSA key" << endl;
+			return 1;
+		}
+
+		if (RSA_private_encrypt(16, hash_of_double_hash, signature.data(), rsa, RSA_PKCS1_PADDING) < 0) {
+			cout << "Can't encrypt" << endl;
+			return 1;
+		}
+		RSA_free(rsa);
+	}
+
 	//Add end
-	add_end(full_file_buf, tag_pos);
+	add_end(full_file_buf, tag_pos, signature);
 
 	ofstream out(out_path, ios_base::binary);
 	if (!out.good())
@@ -338,12 +380,12 @@ vector<byte_t> mstring_to_vector(string name)
 	return str;
 }
 
-void add_end(vector<byte_t>& buf, int32_t tags_pos)
+void add_end(vector<byte_t>& buf, int32_t tags_pos, vector<byte_t> signature)
 {
-	vector<byte_t> end = { 0xB4, 0x56, 0x44, 0x45, 0x31, 0x30, 0x1 };
-	end.resize(0x56);
-	for (int i = 0; i < 64; ++i)
-		end[i + 10] = 0xFF;
-	*(int32_t*)(end.data() + 0x56 - 12) = tags_pos;
-	add_vector(buf, end);
+	signature.resize(64);
+
+	add_vector(buf, { 0xB4, 0x56, 0x44, 0x45, 0x31, 0x30, 0x01, 0x00, 0x00, 0x00 }); // const
+	add_vector(buf, signature);
+	add_vector(buf, int_to_vector(tags_pos));
+	add_vector(buf, vector<byte_t>(8));
 }

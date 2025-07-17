@@ -6,12 +6,18 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
-project ("TinyMRESDK")
+project (TinyMRESDK)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+foreach(OUTPUTCONFIG IN LISTS CMAKE_CONFIGURATION_TYPES) # fix for visual studio
+    string(TOUPPER "${OUTPUTCONFIG}" OUTPUTCONFIG_UPPER)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG_UPPER} "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+endforeach()
 
-include_directories("include")
+include_directories(include)
+
+add_subdirectory (dependencies)
 
 # Include sub-projects.
-add_subdirectory ("PackApp")
-add_subdirectory ("PackRes")
+add_subdirectory (PackApp)
+add_subdirectory (PackRes)
