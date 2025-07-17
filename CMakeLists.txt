@@ -16,6 +16,8 @@ endforeach()
 
 include_directories(include)
 
+add_subdirectory (dependencies)
+
 # Include sub-projects.
 add_subdirectory (PackApp)
 add_subdirectory (PackRes)
