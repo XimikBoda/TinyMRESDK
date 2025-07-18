@@ -96,7 +96,7 @@ int main(int argc, char** argv)
 		parser.set_required<string>("tn", "tag-name", "Name of app for tags");
 		parser.set_optional<string>("crt", "cert", "", "Cert file (must be setup correct certid and non-negative appid)");
 		parser.set_optional<string>("ti", "tag-imsi", "", "Name of app for tags");
-		parser.set_optional<string>("tapi", "tag-api", "File SIM card ProMng", "List of required APIs (Audio Camera Call TCP File HTTP Sensor SIM card Record SMS(person) SMS(SP) BitStream Contact LBS MMS ProMng SMSMng Video XML Sec SysStorage Payment BT PUSH UDP SysFile)");
+		parser.set_optional<string>("tapi", "tag-api", "File SIM card ProMng", "List of required APIs (Audio Camera Call TCP File HTTP Sensor SIM_card Record SMS_person SMS_SP BitStream Contact LBS MMS ProMng SMSMng Video XML Sec SysStorage Payment BT PUSH UDP SysFile)");
 		parser.set_optional<string>("ty", "tag-type", "vxp", "Type of file (vxp, vso, vsm, svxp)");
 		parser.set_optional<string>("tc", "tag-compiler", "GCC", "Type of used compiler (GCC, RVCT, ADS)");
 		parser.set_optional<int>("tr", "tag-ram", 512, "Ram size application required (in KB) for tags");
